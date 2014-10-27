@@ -24,7 +24,7 @@ import os
 
 # A few constants:
 DEBUG_BENCHMARK = True
-CONST_BUILD = 5
+CONST_BUILD = 10
 CONST_VER = "0.2.1"
 CONST_VERSTRING = "Version %s build %s" % (CONST_VER, CONST_BUILD)
 CONST_YEARS = "2014"
@@ -43,10 +43,10 @@ CONST_SECTORSIZE = 512
 
 # And now some variables:
 headers_list = [
-    #'\xff\xd8\xff',
+    '\xff\xd8\xff',
     '\x89\x50\x4e\x47\x0d\x0a\x1a\x0a',
     '\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1',
-    #'GIF8',
+    'GIF8',
 ]
 
 
@@ -74,6 +74,25 @@ def Carve(args):
         '\x89\x50\x4e\x47\x0d\x0a\x1a\x0a': ".png",
         '\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1': ".doc",
         'GIF8': ".gif",
+    }
+    sois = {  # Structures of Interest, it's a list that gets compiled into a regex that helps the
+              # carver determine the gap end position.
+        '\xff\xd8\xff': ['\xff\xc0', '\xff\xc1', '\xff\xc2', '\xff\xc3', '\xff\xc4', '\xff\xc5',
+            '\xff\xc6', '\xff\xc7', '\xff\xc8', '\xff\xc9', '\xff\xca', '\xff\xcb', '\xff\xcc',
+            '\xff\xcd', '\xff\xce', '\xff\xcf', '\xff\xd0', '\xff\xd1', '\xff\xd2', '\xff\xd3',
+            '\xff\xd4', '\xff\xd5', '\xff\xd6', '\xff\xd7', '\xff\xd9', '\xff\xda', '\xff\xdb',
+            '\xff\xdc', '\xff\xdd', '\xff\xde', '\xff\xdf', '\xff\xe0', '\xff\xe1', '\xff\xe2',
+            '\xff\xe3', '\xff\xe4', '\xff\xe5', '\xff\xe6', '\xff\xe7', '\xff\xe8', '\xff\xe9',
+            '\xff\xea', '\xff\xeb', '\xff\xec', '\xff\xed', '\xff\xee', '\xff\xef', '\xff\xf0',
+            '\xff\xf1', '\xff\xf2', '\xff\xf3', '\xff\xf4', '\xff\xf5', '\xff\xf6', '\xff\xf7',
+            '\xff\xf8', '\xff\xf9', '\xff\xfa', '\xff\xfb', '\xff\xfc', '\xff\xfd', '\xff\xfe'
+        ],  # this is a list of all the valid jpeg markers
+        '\x89\x50\x4e\x47\x0d\x0a\x1a\x0a': ["PLTE", "IDAT", "IEND", "bKGD", "cHRM", "gAMA", "hIST",
+            "iCCP", "iTXt", "pHYs", "sBIT", "sPLT", "sRGB", "sTER", "tEXt", "tIME", "tRNS", "zTXt"
+        ],  # this is a list of all the standard PNG segments that could be found
+        'GIF8': ['\x21\xf9',
+        ]
+
     }
 
     image = open(args.ipath, "rb")
@@ -103,10 +122,12 @@ def Carve(args):
                 gap_start = (lvb / sectorsize) + 1
                 gap_end = (filesize / sectorsize) - 1
                 gap_size_start = 1
-                print "  file not valid, trying gaps..."
+                print "  file not valid, trying gaps... (head: %s)" % (head.encode("hex"))
                 for gap_pos in xrange(gap_start, gap_end):
                     print "\r    gaps starting from %d..." % (gap_pos),
                     gap_size_end = gap_end - gap_pos
+                    print "possible gap size: %d ..." % (gap_size_end),
+                    gap_size_end = 2048
                     for gap_size in xrange(gap_size_start, gap_size_end):
                         pos1 = gap_pos * sectorsize
                         pos2 = (gap_pos + gap_size) * sectorsize
@@ -115,17 +136,18 @@ def Carve(args):
                         if val.Validate(new_obj):
                             extract = True
                             data = newdata
+                            print "... validated with gap %d to %d!" % (gap_pos, gap_pos + gap_size)
                             break
                     if extract:
-                        extension = extensions[head]
-                        ext_size = val.GetStatus()[2]
-                        fo = open(ostring % (ext_number, extension), "wb")
-                        fo.write(data[:ext_size])
-                        fo.close()
-                        ext_number += 1
                         break
             if extract:
-                pass
+                extension = extensions[head]
+                ext_size = val.GetStatus()[2]
+                print "  extracted to %s..." % (ostring % (ext_number, extension))
+                fo = open(ostring % (ext_number, extension), "wb")
+                fo.write(data[:ext_size])
+                fo.close()
+                ext_number += 1
         block = newblock
     image.close()
 
