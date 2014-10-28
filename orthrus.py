@@ -24,8 +24,8 @@ import os
 
 # A few constants:
 DEBUG_BENCHMARK = True
-CONST_BUILD = 10
-CONST_VER = "0.2.1"
+CONST_BUILD = 11
+CONST_VER = "0.2.2"
 CONST_VERSTRING = "Version %s build %s" % (CONST_VER, CONST_BUILD)
 CONST_YEARS = "2014"
 CONST_BANNER = """
@@ -90,10 +90,16 @@ def Carve(args):
         '\x89\x50\x4e\x47\x0d\x0a\x1a\x0a': ["PLTE", "IDAT", "IEND", "bKGD", "cHRM", "gAMA", "hIST",
             "iCCP", "iTXt", "pHYs", "sBIT", "sPLT", "sRGB", "sTER", "tEXt", "tIME", "tRNS", "zTXt"
         ],  # this is a list of all the standard PNG segments that could be found
-        'GIF8': ['\x21\xf9',
-        ]
-
+        '\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1': [],  # there's really no structure that we should/could
+        # look for regarding MS-OLE files, so we have to return to a standard size
+        'GIF8': [',', ';', '\x21\xf9', '\x21\x01', '\x21\xff', '\x21\xfe'
+        ],  # this covers all possible GIF blocks
     }
+    # now we have to compile those lists and store the regex(s)
+    rex_sois = {}
+    for k in sois:
+        values = map(re.escape, sois[k])
+        rex_sois[k] = re.compile("|".join(values))
 
     image = open(args.ipath, "rb")
     os.mkdir(args.opath)
@@ -121,13 +127,21 @@ def Carve(args):
                 lvb = val.GetStatus()[2]  # last valid byte
                 gap_start = (lvb / sectorsize) + 1
                 gap_end = (filesize / sectorsize) - 1
+                if sois[head]:
+                    end_match = rex_sois[head].search(data[gap_start * sectorsize:])
+                    if end_match:
+                        gap_end = gap_start + (end_match.start() / sectorsize)
+                    else:
+                        continue
+                else:
+                    gap_end = (filesize / sectorsize) - 1
                 gap_size_start = 1
                 print "  file not valid, trying gaps... (head: %s)" % (head.encode("hex"))
                 for gap_pos in xrange(gap_start, gap_end):
                     print "\r    gaps starting from %d..." % (gap_pos),
                     gap_size_end = gap_end - gap_pos
                     print "possible gap size: %d ..." % (gap_size_end),
-                    gap_size_end = 2048
+                    gap_size_end = min((2048, gap_size_end))
                     for gap_size in xrange(gap_size_start, gap_size_end):
                         pos1 = gap_pos * sectorsize
                         pos2 = (gap_pos + gap_size) * sectorsize
