@@ -24,7 +24,7 @@ import os
 
 # A few constants:
 DEBUG_BENCHMARK = True
-CONST_BUILD = 11
+CONST_BUILD = 15
 CONST_VER = "0.2.2"
 CONST_VERSTRING = "Version %s build %s" % (CONST_VER, CONST_BUILD)
 CONST_YEARS = "2014"
@@ -128,9 +128,16 @@ def Carve(args):
                 gap_start = (lvb / sectorsize) + 1
                 gap_end = (filesize / sectorsize) - 1
                 if sois[head]:
-                    end_match = rex_sois[head].search(data[gap_start * sectorsize:])
+                    rx = rex_sois[head]
+                    end_match = rx.search(data[gap_start * sectorsize:])
                     if end_match:
                         gap_end = gap_start + (end_match.start() / sectorsize)
+                        # lets try to broaden the spectrum and look for another SOI
+                        new_match = rx.search(data[(gap_end + 1) * sectorsize:])
+                        if new_match:
+                            gap_old = gap_end
+                            gap_end = gap_start + (new_match.start() / sectorsize)
+                            print "  got a new match, old(%d), new(%d)" % (gap_old, gap_end)
                     else:
                         continue
                 else:
@@ -142,7 +149,8 @@ def Carve(args):
                     gap_size_end = gap_end - gap_pos
                     print "possible gap size: %d ..." % (gap_size_end),
                     gap_size_end = min((2048, gap_size_end))
-                    for gap_size in xrange(gap_size_start, gap_size_end):
+                    #for gap_size in xrange(gap_size_start, gap_size_end):
+                    for gap_size in xrange(gap_size_end - 1, 0, -1):
                         pos1 = gap_pos * sectorsize
                         pos2 = (gap_pos + gap_size) * sectorsize
                         newdata = data[:pos1] + data[pos2:]
