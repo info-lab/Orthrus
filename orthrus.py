@@ -24,8 +24,8 @@ import os
 
 # A few constants:
 DEBUG_BENCHMARK = True
-CONST_BUILD = 15
-CONST_VER = "0.2.2"
+CONST_BUILD = 18
+CONST_VER = "0.2.3"
 CONST_VERSTRING = "Version %s build %s" % (CONST_VER, CONST_BUILD)
 CONST_YEARS = "2014"
 CONST_BANNER = """
@@ -118,8 +118,9 @@ def Carve(args):
             head = match.group()
             val = validators[head]
             data = bigblock[offset: offset + filesize]
-            obj = cStringIO.StringIO(data)
-            valid = val.Validate(obj)
+            #obj = cStringIO.StringIO(data)
+            print "Testing %s at %d..." % (head.encode("hex"), offset)
+            valid = val.Validate(data)
             if valid:
                 extract = True
             else:
@@ -147,15 +148,16 @@ def Carve(args):
                 for gap_pos in xrange(gap_start, gap_end):
                     print "\r    gaps starting from %d..." % (gap_pos),
                     gap_size_end = gap_end - gap_pos
-                    print "possible gap size: %d ..." % (gap_size_end),
+                    print "possible gap size: %d... " % (gap_size_end),
                     gap_size_end = min((2048, gap_size_end))
                     #for gap_size in xrange(gap_size_start, gap_size_end):
                     for gap_size in xrange(gap_size_end - 1, 0, -1):
+                        #print "\bx",
                         pos1 = gap_pos * sectorsize
                         pos2 = (gap_pos + gap_size) * sectorsize
                         newdata = data[:pos1] + data[pos2:]
-                        new_obj = cStringIO.StringIO(newdata)
-                        if val.Validate(new_obj):
+                        #new_obj = cStringIO.StringIO(newdata)
+                        if val.Validate(newdata):
                             extract = True
                             data = newdata
                             print "... validated with gap %d to %d!" % (gap_pos, gap_pos + gap_size)
@@ -165,7 +167,7 @@ def Carve(args):
             if extract:
                 extension = extensions[head]
                 ext_size = val.GetStatus()[2]
-                print "  extracted to %s..." % (ostring % (ext_number, extension))
+                print "  extracted to %s, %d bytes" % (ostring % (ext_number, extension), ext_size)
                 fo = open(ostring % (ext_number, extension), "wb")
                 fo.write(data[:ext_size])
                 fo.close()
